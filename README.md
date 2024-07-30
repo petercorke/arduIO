@@ -94,17 +94,14 @@ can be added by writing custom code for the host and Arduino end.
 Elegance and perceptions of complexity are always in the eye of the beholder, but Firmata and Telemetrix, while popular do not have a control engineers approach to the problem.
 ArduIO takes a different approach and its design principles are:
 
-The first requirement was to try and simplify things.
-
 * the sampling is paced by a real-time clock on the server device
-* the protocol between the client and server is based on compact, but readable, ASCII strings.
-* minimal protocol complexity, can be implemented in C, portable,
+* minimal complexity protocol, that can be implemented in C and is portable, and is based on compact, but readable, ASCII strings.
 * in practice the i/o devices to be read or written at each sample time do not change as the application runs.  This means that they can be declared before the main control loop begins execution, ideally making execution at each sample time more efficient.
-* continuous values, such as ADC or DAC values, are sent and received as integers and scaled on the host.
+* continuous values, such as ADC or DAC values, are sent and received as integers and scaled on the host, removing the need for floating point arithmetic on the Arduino
 * the client side API is invariant to the particular Arduino, its i/o devices and shields
-* any device can return or consume a vector value, eg. an IMU accleration measurement
+* every input device returns scalar or vector value of ints or floats (eg. an IMU accleration measurement), every output device consumes a scalar or vector value of ints or floats 
 
-The current working version of the ArduIO server sketch, which supports analog and digital i/o, and the Nano motor carrier, is 834 lines of commented code.
+The current working version of the ArduIO server sketch, which supports analog and digital i/o, and the Nano motor carrier, is under 1,000 lines of commented code.
 
 ## Communications protocol
 
@@ -144,9 +141,9 @@ The command handler is called repeatedly from the `loop()` function.
 | `out`     | append entry to the output table |
 | `get`     | sample all devices in the input table |
 | `set`     | update all devices in the output table |
-| `run`     | periodically get all devices in the input table |
+| `run`     | periodically perform `get` at specified rate |
 | `stop`    | stop periodic sampling |
-| `blink`   | control server's use of onboard LED |
+| `blink`   | control server's use of the onboard LED |
 
 ## Doing IO
 
@@ -274,6 +271,8 @@ debugging, LED blinking, and serial or WiFi operation.  WiFi communications has 
 # Client software
 
 The client software can be written in any language, but the [reference API implementation is for Python 3](arduio).  An abstract base class `ArduIO` is agnostic to the communications mechanism, whereas the communications specific methods are in the subclasses `ArduIOserial` and `ArduIOwifi`.
+
+For a serially connected arduIO server
 
 ```
 >>> from arduio import ArduIOserial
