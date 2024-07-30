@@ -2,7 +2,7 @@ from arduio import ArduIOserial
 
 
 # a = ArduIO("10.0.0.120", 9000, timeout=2, debug=False)
-a = ArduIOserial("/dev/cu.usbmodem1411101", timeout=1, debug=True)
+a = ArduIOserial("/dev/cu.usbmodem1411101", timeout=1, debug=False)
 
 a.clear()
 print(a.status())

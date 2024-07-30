@@ -16,12 +16,12 @@ class ArduIO:
 
     class Input:
         def __init__(self, path, response):
-            """Object representing a sensor input to the ArduIO server
+            """Object representing a physical input device on the ArduIO server
 
             :param path: Path name of the sensor
             :type path: str
-            :param response: _description_
-            :type response: _type_
+            :param response: string returned by Arduino server, empty string if no scaling
+            :type response: str
             """
             self._path = path
             self.value = None
@@ -42,17 +42,28 @@ class ArduIO:
             represents it.  Analogy values are optionall scaled and offset.
             """
             if self._response:
+                self.raw = value
                 self.value = float(value) * self.scale + self.offset
             else:
+                self.raw = value
                 self.value = value
 
         def __int__(self):
-            return int(self.value)
+            """Get the integer value of the sensor input
+
+            The raw value is returned, not the scaled value.
+            """
+            return int(self.raw)
 
         def __float__(self):
+            """Get the float value of the sensor input
+
+            If the sensor has a scale and offset, the scaled value is returned.
+            """
             return float(self.value)
 
         def __str__(self):
+            """Get the string value of the sensor input"""
             return str(self.value)
 
         def __repr__(self):
@@ -60,15 +71,30 @@ class ArduIO:
 
         @property
         def path(self):
+            """Get the path name of the input device"""
             return self._path
 
     class Output:
         def __init__(self, path, response):
+            """Object representing a physical output device on the ArduIO server
+
+            :param path: Path name of the sensor
+            :type path: str
+            :param response: string returned by Arduino server, empty string if no scaling
+            :type response: str
+            """
             self._path = path
             self._response = response
             self.value = None
 
         def set(self, value):
+            """Set value of the output
+
+            :param: value: The value to be sent to the ArduIO server
+            :type value: int or float
+
+            Note that the value is not sent to the ArduIO server until the send() method is called.
+            """
             self.value = value
 
         def __int__(self):
@@ -85,6 +111,7 @@ class ArduIO:
 
         @property
         def path(self):
+            """Get the path name of the output device"""
             return self._path
 
     def __init__(self, debug=False):
@@ -125,9 +152,22 @@ class ArduIO:
         self._logger.addHandler(ch)
 
     def log(self, msg):
+        """Send a message to the ArduIO server log
+
+        :param msg: Message to be logged
+        :type msg: str
+        """
         self._logger.info(msg)
 
     def __str__(self):
+        """Convert the ArduIO object to a string
+
+        This shows the details of the input and output tables as held by the
+        ArduIO object.
+
+        :return: String representation of the ArduIO object
+        :rtype: str
+        """
         s = ""
         if len(self.inputs) > 0:
             s += "\n  Inputs:"
@@ -274,6 +314,31 @@ class ArduIO:
     #         return line
 
     def run(self, T=None, dt=None, freq=None, callback=None, spinner=False):
+        """Run the ArduIO server for a specified time or number of steps
+
+        :param T: Time to run the server in seconds or number of steps
+        :type T: float or int
+        :param dt: Sampling time interval in seconds
+        :type dt: float
+        :param freq: Sampling frequency in Hz
+        :type freq: float
+        :param callback: Function to be called at each time step
+        :type callback: callable
+        :param spinner: Display a spinner while running
+        :type spinner: bool
+
+        The ArduIO server is run for a specified time or number of steps.  The ArduIO server
+        is started with the specified sampling time interval, and the callback function
+        is called at each time step.  The callback function is expected to update the ``Output``
+        objects, and those values are sent to the ArduIO server after the callback finishes.
+
+        .. note::
+
+            * Only one of ``dt``, or ``freq`` may be specified.
+            * If ``T`` is an int it is interpreted as the number of steps, if it is a float
+              it is interpreted as the time in seconds.
+
+        """
 
         if dt is None and freq is None:
             raise Exception("Either dt or freq must be specified")
@@ -417,6 +482,12 @@ class ArduIOwifi(ArduIO):
         return response
 
     def read(self):
+        """Read a line from the ArduIO server
+
+        :return: Line of text from the ArduIO server, including the trailing '\n'
+        :rtype: str
+        """
+
         try:
             response = self.s.recv(1024).decode("utf-8")
         except socket.timeout as e:
@@ -503,6 +574,11 @@ class ArduIOserial(ArduIO):
                     print(response)  # debug output from the ArduIO server
 
     def read(self):
+        """Read a line from the ArduIO server
+
+        :return: Line of text from the ArduIO server, including the trailing '\n' and excluding the leading '*'
+        :rtype: str
+        """
         response = self.ser.read_until(b"\n").decode("utf-8")
         if self._debug:
             self._logger.debug(f"  [recv] --> [{_format_ctl(response)}]")
