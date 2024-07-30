@@ -1,8 +1,20 @@
-
 # Server software
 
-The server software is an Arduino sketch that uses conditional compilation for configuration options such as WiFi or serial communications, debugging etc.
-The command handler is driven by a table, new command can be easily added to the table and a new handler function associated with it.
+The server sketch is compiled and loaded into the Arduino using the Arduino IDE. It uses conditional compilation for configuration options such as
+debugging verbosity, LED blinking, and serial or WiFi operation.  
+
+To use WiFi communications you must first create the file `arduino_secrets.h` in this folder.  It contains the lines:
+
+```
+char ssid[] = "";     // your network SSID (name)
+char pass[] = "";  // your network password (use for WPA, or use as key for WEP)
+```
+where you must fill in your network SSID and password.  `.gitignore` is set to prevent this file from being committed to git.
+
+In practice WiFi communications has been found to have quite large and unpredictable latencies.  
+Serial communication can easily sustain 50Hz control from an iMac connected via USB serial.
+
+## Input/Output tables
 
 The input and output tables are a linked list of dynamically allocated structs with a head and tail pointer.  Simple list management functions are included.
 
@@ -58,3 +70,7 @@ char *nano_do(Device *dev, char *buf) {
 }
 ```
 On initialization, when the `out /do/1` command is processed the function is called with `buf == NULL` and the function checks the validity of the channel number and sets the pin to OUTPUT mode.  Otherwise it parses the ASCII numeric string from the passed buffer and writes it to the pin.
+
+## Command handler
+
+The command handler is driven by a table, new command can be easily added to the table and a new handler function associated with it.
