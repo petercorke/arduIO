@@ -1,9 +1,33 @@
 # Server software
 
 The server sketch is compiled and loaded into the Arduino using the Arduino IDE. It uses conditional compilation for configuration options such as
-debugging verbosity, LED blinking, and serial or WiFi operation.  
+debugging verbosity, LED blinking, and serial or WiFi operation. 
 
-To use WiFi communications you must first create the file `arduino_secrets.h` in this folder.  It contains the lines:
+Select one only of these definitions
+```
+#define WIFI
+#define SERIAL
+```
+
+If there is a Nano Motor carrier shield add this definition
+
+```
+#define MOTOR_CARRIER
+```
+
+The server can use the onboard LED to indicate its state.  A slow blink means it is alive and processing commands, fast blinking means it is in `run` mode.
+
+```
+#define LED
+```
+
+To send debugging information on the serial port
+
+```
+#define DEBUG
+```
+
+To use WiFi communications you must first create the file `arduino_secrets.h` in this folder.  It must contains the following lines:
 
 ```
 char ssid[] = "";     // your network SSID (name)
