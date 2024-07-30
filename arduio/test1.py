@@ -1,15 +1,8 @@
 from arduio import ArduIOserial
-import logging
 
-# Format the log message
-logging.basicConfig(
-    format="%(levelname)s: %(asctime)s.%(msecs)03d -> %(message)s",
-    datefmt="%H:%M:%S",
-    level=logging.DEBUG,
-)
 
 # a = ArduIO("10.0.0.120", 9000, timeout=2, debug=False)
-a = ArduIOserial("/dev/cu.usbmodem1411101", timeout=1, debug=False)
+a = ArduIOserial("/dev/cu.usbmodem1411101", timeout=1, debug=True)
 
 a.clear()
 print(a.status())

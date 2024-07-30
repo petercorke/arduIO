@@ -3,10 +3,11 @@ import numpy as np
 import time
 import socket
 import serial
+import logging
 
 
 def _format_ctl(s):
-    s = s.replace("\n", "\\n")
+    s = s.replace("\n", "↲")
     s = s.replace("\r", "\\r")
     return s
 
@@ -98,12 +99,33 @@ class ArduIO:
         :param timeout: ArduIO message receive timeout in seconds, defaults to None
         :type timeout: float, optional
         """
-        self.debug = debug
+        self._debug = debug
         self._inputs = []
         self._outputs = []
         self._buf = ""
         self._sendtime = []
         self._sendlast = None
+
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.DEBUG)
+
+        # create console handler and set level to debug
+        ch = logging.StreamHandler()
+
+        # create formatter
+        formatter = logging.Formatter(
+            "%(levelname)s: %(asctime)s.%(msecs)03d -> %(message)s",
+            datefmt="%H:%M:%S",
+        )
+
+        # add formatter to ch
+        ch.setFormatter(formatter)
+
+        # add ch to logger
+        self._logger.addHandler(ch)
+
+    def log(self, msg):
+        self._logger.info(msg)
 
     def __str__(self):
         s = ""
@@ -214,6 +236,8 @@ class ArduIO:
         Read all sensor inputs from the ArduServer and update the corresponding Input objects
         """
         response = self._send("get")
+        if self._debug:
+            self._logger.debug(f"  [recv] --> [{_format_ctl(response)}]")
 
         data = response.split("|")
         for value, inp in zip(data, self.inputs):
@@ -259,8 +283,8 @@ class ArduIO:
         dt = dt_ms / 1000
 
         response = self._send(f"run {dt_ms}")
-        if self.debug:
-            logging.debug(f"start run {response}")
+        if self._debug:
+            self._logger.debug(f"start run {response}")
 
         self.late = []
         self.badseq = []
@@ -283,19 +307,21 @@ class ArduIO:
             last_response = response
 
             # optionally display the response, debug only
-            # if self.debug:
-            #     logging.debug(f"  [recv] --> [{format_ctl(response)}]")
+            # if self._debug:
+            #     self._logger.debug(f"  [recv] --> [{format_ctl(response)}]")
 
             # check for mutiple lines in response
             if response.count("\n") > 1:
-                logging.warning(f"multiple lines in response: {_format_ctl(response)}")
+                self._logger.warning(
+                    f"multiple lines in response: {_format_ctl(response)}"
+                )
 
             if response == "\n":
                 continue
 
             # check for error response from ArduIO server
             if response[0] == "?":
-                logging.warning(f"Error: ArduIO server: {response}")
+                self._logger.warning(f"Error: ArduIO server: {response}")
                 raise Exception(f"Error: ArduIO server: {response}")
 
             # deal with the message from ArudIO server, these come periodically and not
@@ -304,10 +330,10 @@ class ArduIO:
             seq, late = map(int, data[0].split(","))
             if late > 0:
                 self.late.append(int(late))
-                logging.warning(f"Warning: late by {late} @ {seq}")
+                self._logger.warning(f"Warning: late by {late} @ {seq}")
             if seq != self.seq + 1:
                 self.badseq.append((self.seq, seq))
-                logging.warning(f"Error: expected {self.seq+1}, got {seq}")
+                self._logger.warning(f"Error: expected {self.seq+1}, got {seq}")
             self.seq = seq
 
             for value, inp in zip(data[1:], self.inputs):
@@ -324,12 +350,12 @@ class ArduIO:
                 sys.stdout.write("-\|/"[i % 4] + "\b")
                 sys.stdout.flush()
 
-        if self.debug:
-            logging.debug("end of loop")
+        if self._debug:
+            self._logger.debug("end of loop")
         try:
             response = self._send("stop")
         except socket.timeout:
-            logging.warning("stop timeout")
+            self._logger.warning("stop timeout")
 
         # report performance measures
         if self.late:
@@ -386,7 +412,7 @@ class ArduIOwifi(ArduIO):
         response = self.s.recv(1024).decode("utf-8")
         if response[0] == "?":
             raise Exception(f"Error: ArduIO server: {cmd} returned {response}")
-        if self.debug:
+        if self._debug:
             print(f"  [{cmd}] --> [{_format_ctl(response)}]")
         return response
 
@@ -395,13 +421,13 @@ class ArduIOwifi(ArduIO):
             response = self.s.recv(1024).decode("utf-8")
         except socket.timeout as e:
             # handle read timeout
-            logging.warning(f"Timeout error")
-            logging.warning(f"  {last_response = }")
-            logging.warning(f"  {i = }")
-            logging.warning(f"  {self.late = }")
-            logging.warning(f"  {self.badseq = }")
-            logging.warning(f"  last send - now {self._sendlast - time.time()}")
-            logging.warning(f"  {np.diff(self._sendtime)[-10:]}")
+            self._logger.warning(f"Timeout error")
+            self._logger.warning(f"  {last_response = }")
+            self._logger.warning(f"  {i = }")
+            self._logger.warning(f"  {self.late = }")
+            self._logger.warning(f"  {self.badseq = }")
+            self._logger.warning(f"  last send - now {self._sendlast - time.time()}")
+            self._logger.warning(f"  {np.diff(self._sendtime)[-10:]}")
             raise e
         return response
 
@@ -465,8 +491,8 @@ class ArduIOserial(ArduIO):
         while True:
             response = self.ser.read_until(b"\n").decode("utf-8")
             if response[0] == "*":
-                if self.debug:
-                    print(f"  [{cmd}] --> [{_format_ctl(response)}]")
+                if self._debug:
+                    self._logger.debug(f"  [{cmd}] --> [{_format_ctl(response)}]")
                 return response[1:]
             elif response[0] == "?":
                 raise Exception(f"Error: ArduIO server: {cmd} returned {response}")
@@ -478,8 +504,8 @@ class ArduIOserial(ArduIO):
 
     def read(self):
         response = self.ser.read_until(b"\n").decode("utf-8")
-        if self.debug:
-            logging.debug(f"  [recv] --> [{_format_ctl(response)}]")
+        if self._debug:
+            self._logger.debug(f"  [recv] --> [{_format_ctl(response)}]")
         return response[1:]
 
     def status(self):
