@@ -1,14 +1,17 @@
-# ArduIO server
+# ArduIO
 
 Performing real-time control on a desktop or laptop computer is frequently problematic.  These computers do not have  relevant i/o devices (digital and analog pins) and they run a time-sharing operating system which makes accurate periodic operations very difficult.  Sample jitter, missed samples, and sample rate error are common.  They are, however, very convenient platforms for code development.
 
 Low-cost hardware such as Arduino is available that provides the relevant i/o devices.  Code on the Arduino runs without any operating system using a very fast polling loop.
 
-ArduIO is a way to connect these two types of computing device to allow for convenient and high-quality real-time control using code running on the desktop or laptop?
+ArduIO is a way to connect these two types of computing device to allow for convenient and high-quality real-time control using code running on the desktop or laptop.  It comprises two communicating components:
+
+* the i/o _server_ which runs on the Arduino
+* the _client_ which runs on a _host_ computer, typically a laptop or desktop with full code development facilities
 
 ## Other approaches
 
-There are a number of well known packages that also tackle this problem.  Some of the better known ones
+There are a number of well known packages that tackle this same problem.  Some of the better known ones
 are listed below.
 
 ### Firmata
@@ -21,8 +24,7 @@ Hans-Christoph Steiner, NIME09, June 2009.](https://www.nime.org/proceedings/200
 Firmata does not really support synchronous sampling.  All inputs are polled at high speed and sent to the client, where subsampling takes place.  This not only wastes communications bandwidth, it also introduces artifacts due to the signal being
 resampled. Adding a new type of device is not straightforward, and the client (host-side) software has to know about the different types of device on the server.
 
-Arduino ships with 13 different Firmata sketches, and there are 5 other variant libraries that can be installed.
-The versions from standard to configurable.
+Arduino ships with 13 different Firmata sketches, from standard to configurable, and there are 5 other variant libraries that can be installed.
 `AnalogFirmata` provides access to analog IO.  It has a fixed sample rate of 20ms
 
 ```
@@ -56,7 +58,6 @@ A reference to the `Pin` object can also be obtained directly from the `Board` o
 
 The user's code loop must regularly call `board.iterate()` to read the incoming messages or else
 setup a background thread using `util.Iterator` to do this.
-
 [pymata-aio](https://pypi.org/project/pymata-aio/) is an alternative approach based on Python asynchronous io.
 
 ### Telemetrix
@@ -135,29 +136,30 @@ Commands are processed by a table-driven command handler, and commands are dispa
 are easily added.
 The command handler is called repeatedly from the `loop()` function.
 
-| Command | Description |
-| ------- | ------------ |
-| clear   | clear the input and output tables |
-| status  | return the size of the tables, WiFi status, build status |
-| inp     | append entry to the input table |
-| out     | append entry to the output table |
-| get     | sample all devices in the input table |
-| set     | update all devices in the output table |
-| run     | periodically get all devices in the input table |
-| stop    | stop periodic sampling |
-| blink   | control server's use of onboard LED |
+| Command   | Description |
+| -------   | ------------ |
+| `clear`   | clear the input and output tables |
+| `status`  | return the size of the tables, WiFi status, build status |
+| `inp`     | append entry to the input table |
+| `out`     | append entry to the output table |
+| `get`     | sample all devices in the input table |
+| `set`     | update all devices in the output table |
+| `run`     | periodically get all devices in the input table |
+| `stop`    | stop periodic sampling |
+| `blink`   | control server's use of onboard LED |
 
 ## Doing IO
 
 An Arduino supports a large number of i/o capabilities, some of which are referred to simply as _pins_.
-We will generalize this and refer to each i/o capability (a digital input or an IMU) as a device.  Some devices have
-an associated channel number: channel 2 of the onchip ADC is a different device to channel 3 of the ADC.
+We will generalize this and refer to each i/o capability (a digital input or an IMU) as a device.  
+Every device is associated with one or more pins on the chip. Some pins are shared between multiple devices, but only only one of those devices can be used at any one time.
+Some devices have an associated channel number: channel 2 of the onchip ADC is a different device to channel 3 of the ADC.
 
 ### I/O device specification
 
 ArduIO employs a path-like notation for specifying devices.  This means that the client API software is completely agnostic to the devices present on the server and their data types.  An input device is assumed to produce a scalar or vector of ints or floats. An output device accepts a scalar or vector of ints or floats and performs some real-world action.  Whether a device is an input or output is implicit in its name.
 
-Devices at the "root" are onboard, for example on the Nano 33
+Devices at the "root" are onboard, for example on the Nano 33 the devices are:
 
 ```
 /adc/0   # analog channel 0
@@ -171,7 +173,7 @@ Devices at the "root" are onboard, for example on the Nano 33
 /dac     # DAC
 ```
 
-Devices on shields are in a shield-specific "folder".  For example, the Nano Motor Carrier
+Devices on shields are in a shield-specific "folder".  For example, on the Nano Motor Carrier the devices are:
 
 ```
 /nmc/adc/0    # analog channel 0
@@ -183,7 +185,7 @@ Devices on shields are in a shield-specific "folder".  For example, the Nano Mot
 
 ### Input and output tables
 
-In most applications only a subset of available devices are required.  ArduIO uses the concept of an:
+In most applications only a subset of available devices are used.  ArduIO uses the concept of an:
 
 *  **input table**, a list on the server of all the devices to be read at each sample time. When the server reads the sensors it sends a delimited string with the values in the order they were added to the input table.
 *  **output table**, a list on the server of all the devices to be written at each sample time. When the server writes the sensors it parses a delimited string with the values in the order they were added to the output table.
@@ -202,8 +204,6 @@ A sensor is added to the input table using the `inp` command, and an output devi
 
 Note that the third line has returned scale factor information, indicating that this ADC has a maximum value of 1024 (10 bit) which corresponds to 3.3 volts.
 
-FUTURE: Additional scaling from volts to application specific units could be performed automatically.
-
 The length of the input and output tables is returned as the first two fields of a status message, along
 with the build date of the server
 
@@ -220,10 +220,6 @@ There is no checking for:
 * ensuring that devices which share a common pin are not conflicting (Arduinos overload i/o capability onto pins)
 * ensuring that a device is being added to the correct table, ie. an input device must be added to the input table.
 
-FUTURE: More comprehensive checking should be in the server-side code, perhaps controlled by a table rather than adhoc
-logic.
-
-FUTURE: The input or output nature of a device is known to its handler.  Perhaps the `inp` and `out` commands could be replaced by a single `add` commands which adds the device to the correct table.
 
 ### Reading and writing I/O devices
 
@@ -280,6 +276,7 @@ debugging, LED blinking, and serial or WiFi operation.  WiFi communications has 
 The client software can be written in any language, but the [reference API implementation is for Python 3](arduio).  An abstract base class `ArduIO` is agnostic to the communications mechanism, whereas the communications specific methods are in the subclasses `ArduIOserial` and `ArduIOwifi`.
 
 ```
+>>> from arduio import ArduIOserial
 >>> a = ArduIOserial("/dev/cu.usbmodem1411101", timeout=1, debug=False)  # connect via serial port
 ```
 
@@ -345,7 +342,7 @@ a.send()  # reflect all output proxy values on the hardware
 
 which takes the current value of _all_ output proxy objects and packs them into a single `set` command which is sent to the server.
 
-A very simple control program uses periodic sampling on the ArduServer and a callback function on the client
+A very simple control program uses periodic sampling on the ArduIO and a callback function on the client
 ```
 def cb(a, t):
     led.set(int(nmc_enc0) % 2)
@@ -357,7 +354,6 @@ The `run` method will execute for 30 seconds at a sample rate of 50Hz.  Every sa
 
 Currently the output devices are updated at some variable time after the inputs were sampled, depending on how long the Python callback function takes to execute.
 
-FUTURE: hold these in the ArduServer output table and update the output devices immediatly after the sensors are read, ensuring a constant one sample time delay in the control.
 
 
 # Sampling integrity
@@ -396,7 +392,6 @@ CRC checks are not implemented in the messages.  For WiFi communications, error 
 * handle I2C sensors/outputs
 * get WiFi working reliably
 * application specific analog scaling
-* hold output values till next sample
 * user specifiable heartbeat action and values
 * more comprehensive checking of pin requests, clashes
 * report all present devices
@@ -405,3 +400,4 @@ CRC checks are not implemented in the messages.  For WiFi communications, error 
 * parse arguments in command handler into argc, argv format.
 * Additional scaling from volts to application specific units could be performed automatically.
 * More comprehensive checking should be in the server-side code, perhaps controlled by a table rather than adhoc logic.
+* hold output values in the ArduIO output table and update the output devices immediatly after the sensors are read, ensuring a constant one sample time delay in the control.
